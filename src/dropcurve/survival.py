@@ -8,6 +8,7 @@ they were at risk and not counted as lost.
 """
 
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 
 from .views import Dataset
 
@@ -26,12 +27,32 @@ class SurvivalPoint:
     survival: float  # P(goes past this episode)
 
 
-def listeners(ds: Dataset, series: str) -> list[Listener]:
+def listeners(
+    ds: Dataset, series: str, active_days: float = 7.0, now: datetime | None = None
+) -> list[Listener]:
+    """One Listener per person, censored when we can't yet call them lost:
+
+    - they were active in the last `active_days` before `now` (default: the
+      newest event in the data), or
+    - they have caught up with the newest episode, so there was nothing left
+      to listen to.
+    """
     depth: dict[str, int] = {}
-    for s, user, ep in ds.views:
-        if s == series:
-            depth[user] = max(depth.get(user, 0), ep)
-    return [Listener(d, True) for d in depth.values()]
+    seen: dict[str, datetime] = {}
+    newest_ep = 0
+    for (s, user, ep), v in ds.views.items():
+        if s != series:
+            continue
+        depth[user] = max(depth.get(user, 0), ep)
+        seen[user] = max(seen.get(user, v.last), v.last)
+        newest_ep = max(newest_ep, ep)
+    if not depth:
+        return []
+    now = now or max(seen.values())
+    cutoff = now - timedelta(days=active_days)
+    return [
+        Listener(d, churned=not (seen[u] >= cutoff or d >= newest_ep)) for u, d in depth.items()
+    ]
 
 
 def kaplan_meier(people: list[Listener]) -> list[SurvivalPoint]:

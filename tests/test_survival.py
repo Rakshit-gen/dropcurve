@@ -18,3 +18,24 @@ def test_censored_listeners_are_not_counted_as_lost():
     # At ep 2: 2 at risk (the censored one left the risk set), 1 lost.
     assert km[1].at_risk == 2
     assert km[1].survival == pytest.approx(0.75 * 0.5)
+
+
+def test_recent_and_caught_up_listeners_are_censored():
+    from factory import ev
+
+    from dropcurve.survival import listeners
+    from dropcurve.views import build
+
+    day = 24 * 60
+    events = [
+        ev("old", 1, 600, minutes=0),  # stopped at ep1 30 days ago: lost
+        ev("new", 1, 600, minutes=29 * day),  # started yesterday: censored
+        ev("fan", 1, 600, minutes=0),
+        ev("fan", 2, 600, minutes=1),
+        ev("fan", 3, 600, minutes=2),  # finished everything there is: censored
+        ev("x", 3, 10, minutes=30 * day),  # newest event in the data
+    ]
+    people = {p.depth: p for p in listeners(build(events), "s1")}
+    got = sorted((p.depth, p.churned) for p in listeners(build(events), "s1"))
+    assert got == [(1, False), (1, True), (3, False), (3, False)]
+    assert people
