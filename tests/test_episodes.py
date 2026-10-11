@@ -27,3 +27,9 @@ def test_completion_per_episode():
 def test_episodes_without_duration_have_no_starters():
     stats = episode_stats(build([ev("u1", 1, 600, duration=None)]), "s1")
     assert stats[0].starters == 0 and stats[0].completion == 0.0
+
+
+def test_bounce_rate():
+    events = [ev("u1", 1, 5), ev("u2", 1, 29), ev("u3", 1, 31), ev("u4", 1, 600)]
+    (e1,) = episode_stats(build(events), "s1")
+    assert e1.bounced == 2 and e1.bounce_rate == 0.5
