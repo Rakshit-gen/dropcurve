@@ -44,3 +44,25 @@ def test_standard_error():
     (r,) = wall_results(build(events), "s1")
     # Coins per listener are 10 x5 and 0 x5: sd = 5.27, se = 1.667.
     assert r.se == pytest.approx(1.6667, abs=1e-3)
+
+
+def test_compare_calls_a_clear_winner():
+    from dropcurve.paywall import WallResult, compare
+
+    def group(free, n, payers, coins_each):
+        c = payers * coins_each
+        return WallResult(free, n, n // 2, payers, c, payers * coins_each**2)
+
+    v = compare([group(5, 2000, 300, 40), group(8, 2000, 220, 40), group(12, 2000, 120, 40)])
+    assert v.best.free == 5 and v.runner_up.free == 8
+    assert v.confident and v.z > 3
+    assert "5 free episodes earns 6.00 coins per new listener" in v.describe()
+
+
+def test_compare_with_too_little_data():
+    from dropcurve.paywall import WallResult, compare
+
+    v = compare([WallResult(5, 40, 20, 6, 240.0, 9600.0), WallResult(8, 40, 20, 5, 200.0, 8000.0)])
+    assert not v.confident
+    assert "not enough data" in v.describe()
+    assert compare([]) is None

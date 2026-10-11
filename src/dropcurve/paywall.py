@@ -75,3 +75,37 @@ def wall_results(
         g.coins += c
         g.sum_sq += c * c
     return [groups[k] for k in sorted(groups)]
+
+
+@dataclass
+class Verdict:
+    best: WallResult
+    runner_up: WallResult | None
+    z: float  # best minus runner-up, in standard errors
+    confident: bool  # z clears the cut: the winner is not just noise
+
+    def describe(self) -> str:
+        b = self.best
+        text = f"{b.free} free episodes earns {b.per_starter:.2f} coins per new listener"
+        if self.runner_up is None:
+            return text + " (only one variant in the data)"
+        r = self.runner_up
+        text += f", against {r.per_starter:.2f} with {r.free} free (z = {self.z:.1f})"
+        if not self.confident:
+            text += "; not enough data to call it yet"
+        return text
+
+
+def compare(results: list[WallResult], z_cut: float = 1.96) -> Verdict | None:
+    """Pick the variant with the most coins per starter, and say whether the
+    lead over the second best is bigger than the noise."""
+    ranked = sorted((r for r in results if r.starters), key=lambda r: -r.per_starter)
+    if not ranked:
+        return None
+    best = ranked[0]
+    if len(ranked) == 1:
+        return Verdict(best, None, 0.0, False)
+    second = ranked[1]
+    se = math.hypot(best.se, second.se)
+    z = (best.per_starter - second.per_starter) / se if se and math.isfinite(se) else 0.0
+    return Verdict(best, second, z, z >= z_cut)
