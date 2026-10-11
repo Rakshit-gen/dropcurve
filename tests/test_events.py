@@ -99,3 +99,21 @@ def test_bad_rows_can_be_collected(tmp_path):
     events = list(read_events(p, errors))
     assert [e.user for e in events] == ["u1", "u2"]
     assert len(errors) == 3 and errors[0].startswith(f"{p}:3:")
+
+
+def test_unlock_events(tmp_path):
+    from dropcurve.events import read_events
+    from dropcurve.views import build
+
+    p = write(
+        tmp_path,
+        "user,series,episode,position,ts,event,coins\n"
+        "u1,s1,8,0,2026-01-05T10:00:00,unlock,25\n"
+        "u1,s1,8,30,2026-01-05T10:01:00,,\n"
+        "u1,s1,8,0,2026-01-05T10:00:00,refund,25\n",
+    )
+    errors = []
+    ds = build(read_events(p, errors))
+    assert ds.unlocks == {("s1", "u1", 8): 25.0}
+    assert ds.views[("s1", "u1", 8)].reached == 30
+    assert "unknown event kind 'refund'" in errors[0]

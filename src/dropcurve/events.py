@@ -14,6 +14,8 @@ ALIASES = {
     "position": ("position", "position_s", "pos"),
     "duration": ("duration", "duration_s", "length"),
     "ts": ("ts", "timestamp", "time"),
+    "kind": ("kind", "event", "type"),
+    "coins": ("coins", "amount", "price"),
 }
 REQUIRED = ("user", "series", "episode", "position", "ts")
 
@@ -26,6 +28,8 @@ class Event:
     position: float  # seconds into the episode
     duration: float | None  # episode length in seconds, if the player sent it
     ts: datetime
+    kind: str = "play"  # "play" for progress pings, "unlock" for a paid unlock
+    coins: float = 0.0  # what an unlock cost
 
 
 class EventError(ValueError):
@@ -70,7 +74,11 @@ def parse_row(row: dict, cols: dict[str, str]) -> Event:
         position=float(row[cols["position"]]),
         duration=float(dur) if dur not in ("", None) else None,
         ts=parse_ts(row[cols["ts"]]),
+        kind=(str(row.get(cols.get("kind", ""), "")) or "play").strip().lower(),
+        coins=float(row.get(cols.get("coins", ""), "") or 0),
     )
+    if e.kind not in ("play", "unlock"):
+        raise ValueError(f"unknown event kind {e.kind!r} (expected play or unlock)")
     if not e.user or not e.series:
         raise ValueError("empty user or series")
     if e.episode < 1:

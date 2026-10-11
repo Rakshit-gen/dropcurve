@@ -1,7 +1,7 @@
 """Collapse progress pings into views: one per listener per episode."""
 
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 from .events import Event
@@ -23,6 +23,7 @@ class View:
 class Dataset:
     views: dict[Key, View]
     durations: dict[tuple[str, int], float]  # (series, episode) -> seconds
+    unlocks: dict[Key, float] = field(default_factory=dict)  # coins paid per unlock
 
     def completion(self, v: View) -> float | None:
         """Share of the episode heard, 0..1, or None if its length is unknown."""
@@ -40,8 +41,12 @@ def build(events: Iterable[Event]) -> Dataset:
     """One pass over the events; memory grows with views, not with pings."""
     views: dict[Key, View] = {}
     durations: dict[tuple[str, int], float] = {}
+    unlocks: dict[Key, float] = {}
     for e in events:
         key = (e.series, e.user, e.episode)
+        if e.kind == "unlock":
+            unlocks[key] = unlocks.get(key, 0.0) + e.coins
+            continue
         v = views.get(key)
         if v is None:
             views[key] = View(e.series, e.user, e.episode, e.position, e.ts, e.ts)
@@ -52,4 +57,4 @@ def build(events: Iterable[Event]) -> Dataset:
         if e.duration:
             k = (e.series, e.episode)
             durations[k] = max(durations.get(k, 0.0), e.duration)
-    return Dataset(views, durations)
+    return Dataset(views, durations, unlocks)
