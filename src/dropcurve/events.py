@@ -3,7 +3,7 @@
 import csv
 from collections.abc import Iterator
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 
 # Accepted column names, so most player exports load without renaming.
 ALIASES = {
@@ -42,6 +42,20 @@ def resolve_columns(header: list[str]) -> dict[str, str]:
     return cols
 
 
+def parse_ts(value) -> datetime:
+    """ISO 8601 (with or without Z), or Unix time in seconds or milliseconds.
+
+    Times without a zone are taken as UTC, so every timestamp compares cleanly.
+    """
+    if isinstance(value, int | float) or str(value).replace(".", "", 1).isdigit():
+        n = float(value)
+        if n > 1e11:  # milliseconds
+            n /= 1000
+        return datetime.fromtimestamp(n, UTC)
+    ts = datetime.fromisoformat(str(value).strip().replace("Z", "+00:00"))
+    return ts if ts.tzinfo else ts.replace(tzinfo=UTC)
+
+
 def parse_row(row: dict, cols: dict[str, str]) -> Event:
     dur = row.get(cols.get("duration", ""), "")
     return Event(
@@ -50,7 +64,7 @@ def parse_row(row: dict, cols: dict[str, str]) -> Event:
         episode=int(row[cols["episode"]]),
         position=float(row[cols["position"]]),
         duration=float(dur) if dur not in ("", None) else None,
-        ts=datetime.fromisoformat(row[cols["ts"]]),
+        ts=parse_ts(row[cols["ts"]]),
     )
 
 

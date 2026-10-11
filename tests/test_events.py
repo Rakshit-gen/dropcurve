@@ -27,3 +27,28 @@ def test_missing_column(tmp_path):
     p = write(tmp_path, "user,series,episode,ts\nu1,s1,1,2026-01-05T10:00:00\n")
     with pytest.raises(ValueError, match="position"):
         list(read_csv(p))
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "2026-01-05T10:00:00Z",
+        "2026-01-05T10:00:00+00:00",
+        "2026-01-05 10:00:00",
+        "1767607200",
+        "1767607200000",
+        1767607200.0,
+    ],
+)
+def test_timestamp_formats(raw):
+    from datetime import UTC, datetime
+
+    from dropcurve.events import parse_ts
+
+    assert parse_ts(raw) == datetime(2026, 1, 5, 10, 0, tzinfo=UTC)
+
+
+def test_offset_is_kept():
+    from dropcurve.events import parse_ts
+
+    assert parse_ts("2026-01-05T15:30:00+05:30") == parse_ts("2026-01-05T10:00:00Z")
