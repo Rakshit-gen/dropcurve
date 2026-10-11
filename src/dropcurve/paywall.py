@@ -109,3 +109,51 @@ def compare(results: list[WallResult], z_cut: float = 1.96) -> Verdict | None:
     se = math.hypot(best.se, second.se)
     z = (best.per_starter - second.per_starter) / se if se and math.isfinite(se) else 0.0
     return Verdict(best, second, z, z >= z_cut)
+
+
+def paid_continuation(ds: Dataset, series: str) -> float | None:
+    """Of listeners who unlocked episode j, the share who also unlocked j+1."""
+    unlocked = {(u, ep) for (s, u, ep) in ds.unlocks if s == series}
+    if not unlocked:
+        return None
+    last = max(ep for _, ep in unlocked)
+    base = [(u, ep) for u, ep in unlocked if ep < last]
+    if not base:
+        return None
+    return sum((u, ep + 1) in unlocked for u, ep in base) / len(base)
+
+
+@dataclass
+class Projection:
+    free: int
+    reach: float  # share of new listeners who would meet a wall here
+    coins_per_starter: float
+
+
+def project(
+    reach: dict[int, float],
+    last_episode: int,
+    conversion: float,
+    continuation: float,
+    price: float,
+    walls,
+) -> list[Projection]:
+    """A model, not a measurement. For each candidate wall k:
+
+        coins per starter = reach(k+1) * conversion * price * E[paid episodes]
+
+    where reach(k+1) is the share of new listeners who start episode k+1 when
+    it is free (measured), and a payer goes on unlocking each next episode with
+    probability `continuation`, up to the last episode. It assumes conversion
+    and continuation would stay what they were at the tested wall, which is the
+    first thing an A/B test of the new position would check.
+    """
+    out = []
+    for k in walls:
+        n = last_episode - k  # episodes behind the wall
+        if n <= 0 or (k + 1) not in reach:
+            continue
+        q = continuation
+        expected_eps = n if q >= 1 else (1 - q**n) / (1 - q)
+        out.append(Projection(k, reach[k + 1], reach[k + 1] * conversion * price * expected_eps))
+    return out

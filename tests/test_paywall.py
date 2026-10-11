@@ -66,3 +66,21 @@ def test_compare_with_too_little_data():
     assert not v.confident
     assert "not enough data" in v.describe()
     assert compare([]) is None
+
+
+def test_paid_continuation():
+    from dropcurve.paywall import paid_continuation
+
+    events = listener("a", 3, 3, paid_eps=(4, 5, 6)) + listener("b", 3, 3, paid_eps=(4,))
+    # Unlocks below the last one: a4, a5, b4. Followed by the next: a4, a5.
+    assert paid_continuation(build(events), "s1") == pytest.approx(2 / 3)
+
+
+def test_projection_formula():
+    from dropcurve.paywall import project
+
+    reach = {1: 1.0, 2: 0.8, 3: 0.6, 4: 0.5}
+    (p,) = project(reach, last_episode=5, conversion=0.2, continuation=0.5, price=10, walls=[3])
+    # reach(4) * 0.2 * 10 * (1 + 0.5) for the 2 episodes behind a wall at 3.
+    assert p.coins_per_starter == pytest.approx(0.5 * 0.2 * 10 * 1.5)
+    assert project(reach, 5, 0.2, 0.5, 10, walls=[9]) == []
