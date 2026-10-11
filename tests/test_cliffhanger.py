@@ -21,3 +21,15 @@ def test_pull_within_a_day():
 
 def test_last_episode_has_no_ending_to_score():
     assert endings(build([ev("a", 1, 600)]), "s1") == []
+
+
+def test_weak_ending_stands_out():
+    from dropcurve.cliffhanger import Ending, score_endings
+
+    ends = [Ending(ep, 400, 280) for ep in range(1, 9)]
+    ends[4] = Ending(5, 400, 200)  # 50% pull against ~70% everywhere else
+    ends[6] = Ending(7, 20, 5)  # bad, but too few finishers to call
+    score_endings(ends)
+    assert [e.episode for e in ends if e.verdict == "weak"] == [5]
+    assert ends[4].z < -5
+    assert ends[6].verdict == ""

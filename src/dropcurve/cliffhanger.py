@@ -50,3 +50,24 @@ def endings(
                 pulled += 1  # started the next one before the last ping of this one
         out.append(Ending(ep, finishers, pulled))
     return out
+
+
+def score_endings(ends: list[Ending], z_cut: float = 2.58, min_finishers: int = 30) -> None:
+    """Compare each ending with the pooled rest of the season (two-proportion z).
+
+    The default cut of 2.58 (99%) keeps a 40-episode season from crying wolf
+    on two or three endings by chance alone.
+    """
+    from .stats import two_proportion_z
+
+    total_f = sum(e.finishers for e in ends)
+    total_p = sum(e.pulled for e in ends)
+    for e in ends:
+        rest_f, rest_p = total_f - e.finishers, total_p - e.pulled
+        e.z = two_proportion_z(e.pulled, e.finishers, rest_p, rest_f)
+        if e.finishers < min_finishers:
+            e.verdict = ""
+        elif e.z <= -z_cut:
+            e.verdict = "weak"
+        elif e.z >= z_cut:
+            e.verdict = "strong"
