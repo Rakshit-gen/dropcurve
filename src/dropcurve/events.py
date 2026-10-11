@@ -16,6 +16,7 @@ ALIASES = {
     "ts": ("ts", "timestamp", "time"),
     "kind": ("kind", "event", "type"),
     "coins": ("coins", "amount", "price"),
+    "free": ("free_episodes", "free", "wall"),
 }
 REQUIRED = ("user", "series", "episode", "position", "ts")
 
@@ -30,6 +31,7 @@ class Event:
     ts: datetime
     kind: str = "play"  # "play" for progress pings, "unlock" for a paid unlock
     coins: float = 0.0  # what an unlock cost
+    free: int | None = None  # free episodes this listener gets (their A/B variant)
 
 
 class EventError(ValueError):
@@ -76,6 +78,7 @@ def parse_row(row: dict, cols: dict[str, str]) -> Event:
         ts=parse_ts(row[cols["ts"]]),
         kind=(str(row.get(cols.get("kind", ""), "")) or "play").strip().lower(),
         coins=float(row.get(cols.get("coins", ""), "") or 0),
+        free=int(row.get(cols.get("free", ""), "") or 0) or None,
     )
     if e.kind not in ("play", "unlock"):
         raise ValueError(f"unknown event kind {e.kind!r} (expected play or unlock)")

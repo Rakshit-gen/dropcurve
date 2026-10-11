@@ -23,3 +23,13 @@ def test_series_and_episodes():
     assert ds.series() == ["s1", "s2"]
     assert ds.episodes("s1") == [1, 3]
     assert ds.views[("s1", "u1", 1)].first == T0
+
+
+def test_paywall_variant_per_listener():
+    from dataclasses import replace
+
+    a = replace(ev("u1", 1, 10), free=8)
+    b = replace(ev("u2", 1, 10), free=12)
+    c = ev("u3", 1, 10)
+    ds = build([a, b, c])
+    assert ds.walls == {("s1", "u1"): 8, ("s1", "u2"): 12}

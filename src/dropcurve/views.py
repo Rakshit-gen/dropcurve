@@ -24,6 +24,7 @@ class Dataset:
     views: dict[Key, View]
     durations: dict[tuple[str, int], float]  # (series, episode) -> seconds
     unlocks: dict[Key, float] = field(default_factory=dict)  # coins paid per unlock
+    walls: dict[tuple[str, str], int] = field(default_factory=dict)  # free eps per listener
 
     def completion(self, v: View) -> float | None:
         """Share of the episode heard, 0..1, or None if its length is unknown."""
@@ -42,8 +43,11 @@ def build(events: Iterable[Event]) -> Dataset:
     views: dict[Key, View] = {}
     durations: dict[tuple[str, int], float] = {}
     unlocks: dict[Key, float] = {}
+    walls: dict[tuple[str, str], int] = {}
     for e in events:
         key = (e.series, e.user, e.episode)
+        if e.free:
+            walls[(e.series, e.user)] = e.free
         if e.kind == "unlock":
             unlocks[key] = unlocks.get(key, 0.0) + e.coins
             continue
@@ -57,4 +61,4 @@ def build(events: Iterable[Event]) -> Dataset:
         if e.duration:
             k = (e.series, e.episode)
             durations[k] = max(durations.get(k, 0.0), e.duration)
-    return Dataset(views, durations, unlocks)
+    return Dataset(views, durations, unlocks, walls)
