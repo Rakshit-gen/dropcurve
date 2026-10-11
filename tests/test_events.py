@@ -52,3 +52,19 @@ def test_offset_is_kept():
     from dropcurve.events import parse_ts
 
     assert parse_ts("2026-01-05T15:30:00+05:30") == parse_ts("2026-01-05T10:00:00Z")
+
+
+def test_jsonl(tmp_path):
+    from dropcurve.events import read_events
+
+    p = write(
+        tmp_path,
+        '{"uid": "u1", "show": "s1", "ep": 2, "pos": 30, "length": null, '
+        '"time": 1767607200}\n\n'
+        '{"uid": "u2", "show": "s1", "ep": 2, "pos": 45.5, "length": 900, '
+        '"time": 1767607260}\n',
+        name="events.jsonl",
+    )
+    events = list(read_events(p))
+    assert [e.user for e in events] == ["u1", "u2"]
+    assert events[0].duration is None and events[1].duration == 900

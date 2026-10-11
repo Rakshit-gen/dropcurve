@@ -74,3 +74,25 @@ def read_csv(path) -> Iterator[Event]:
         cols = resolve_columns(reader.fieldnames or [])
         for row in reader:
             yield parse_row(row, cols)
+
+
+def read_jsonl(path) -> Iterator[Event]:
+    import json
+
+    cols = None
+    with open(path) as f:
+        for line in f:
+            if not line.strip():
+                continue
+            obj = json.loads(line)
+            if cols is None:
+                cols = resolve_columns(list(obj))
+            yield parse_row({k: ("" if v is None else v) for k, v in obj.items()}, cols)
+
+
+def read_events(path) -> Iterator[Event]:
+    """Read a .csv, .jsonl or .ndjson file of events."""
+    suffix = str(path).lower().rsplit(".", 1)[-1]
+    if suffix in ("jsonl", "ndjson"):
+        return read_jsonl(path)
+    return read_csv(path)
