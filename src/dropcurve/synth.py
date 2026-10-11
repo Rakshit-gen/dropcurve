@@ -23,6 +23,15 @@ class Truth:
     weak_endings: dict[int, float] = field(default_factory=dict)  # ep -> pull instead
     drag: dict[int, float] = field(default_factory=dict)  # ep -> leave chance instead
 
+    @classmethod
+    def demo(cls) -> "Truth":
+        """The planted problems used by `dropcurve synth` and the tests."""
+        return cls(
+            cliffs={6: (0.41, 0.12)},  # an ad break 41% into episode 6
+            weak_endings={9: 0.45},  # episode 9 ends on a resolution, not a hook
+            drag={14: 0.55},  # episode 14 is a slow one: people drift off all through it
+        )
+
 
 def _view(rng: random.Random, t: Truth, ep: int) -> float:
     """Furthest point (0..1) one listener reaches in episode ep."""
