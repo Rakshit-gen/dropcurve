@@ -25,6 +25,8 @@ class SurvivalPoint:
     at_risk: int
     lost: int
     survival: float  # P(goes past this episode)
+    low: float = 0.0  # 95% band (Greenwood), clipped to 0..1
+    high: float = 1.0
 
 
 def listeners(
@@ -59,11 +61,23 @@ def kaplan_meier(people: list[Listener]) -> list[SurvivalPoint]:
     if not people:
         return []
     last = max(p.depth for p in people)
-    out, s = [], 1.0
+    out, s, var_sum = [], 1.0, 0.0
     for k in range(1, last + 1):
         at_risk = sum(p.depth >= k for p in people)
         lost = sum(p.depth == k and p.churned for p in people)
         if at_risk:
             s *= 1 - lost / at_risk
-        out.append(SurvivalPoint(k, at_risk, lost, s))
+            if at_risk > lost:
+                var_sum += lost / (at_risk * (at_risk - lost))
+        half = 1.96 * s * var_sum**0.5
+        out.append(SurvivalPoint(k, at_risk, lost, s, max(0.0, s - half), min(1.0, s + half)))
     return out
+
+
+def median_depth(km: list[SurvivalPoint]) -> int | None:
+    """First episode where survival falls to 0.5 or below: half of new listeners
+    don't get past it. None if more than half are still going at the end."""
+    for p in km:
+        if p.survival <= 0.5:
+            return p.episode
+    return None

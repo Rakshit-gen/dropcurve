@@ -35,7 +35,25 @@ def test_recent_and_caught_up_listeners_are_censored():
         ev("fan", 3, 600, minutes=2),  # finished everything there is: censored
         ev("x", 3, 10, minutes=30 * day),  # newest event in the data
     ]
-    people = {p.depth: p for p in listeners(build(events), "s1")}
     got = sorted((p.depth, p.churned) for p in listeners(build(events), "s1"))
     assert got == [(1, False), (1, True), (3, False), (3, False)]
-    assert people
+
+
+def test_greenwood_band_and_median():
+    from dropcurve.survival import median_depth
+
+    people = [Listener(d, True) for d in [1] * 30 + [2] * 30 + [3] * 20 + [4] * 20]
+    km = kaplan_meier(people)
+    p1 = km[0]
+    assert p1.survival == pytest.approx(0.7)
+    # Greenwood variance at k=1 is S^2 * d / (n (n - d)) = 0.0021.
+    assert p1.low == pytest.approx(0.7 - 1.96 * 0.0021**0.5, abs=1e-6)
+    assert p1.high == pytest.approx(0.7 + 1.96 * 0.0021**0.5, abs=1e-6)
+    assert median_depth(km) == 2  # survival first drops to 0.5 or below at ep 2
+
+
+def test_median_not_reached():
+    from dropcurve.survival import median_depth
+
+    km = kaplan_meier([Listener(1, True)] + [Listener(5, False)] * 9)
+    assert median_depth(km) is None
