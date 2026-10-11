@@ -117,6 +117,3 @@ def read_events(path, errors: list[str] | None = None) -> Iterator[Event]:
             if errors is None:
                 raise EventError(msg) from e
             errors.append(msg)
-
-
-read_csv = read_jsonl = read_events
