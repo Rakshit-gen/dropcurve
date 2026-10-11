@@ -47,3 +47,24 @@ def binge_stats(ds: Dataset, series: str, gap: timedelta = SESSION_GAP) -> Binge
         p90_episodes=quantile(counts, 0.9),
         binge_share=sum(c >= 3 for c in counts) / len(counts),
     )
+
+
+@dataclass
+class Gap:
+    count: int
+    median_hours: float
+    p90_hours: float
+
+
+def time_to_next(ds: Dataset, series: str) -> Gap | None:
+    """Time from the last ping of episode k to the first ping of k+1, per listener."""
+    hours = []
+    for (s, user, ep), v in ds.views.items():
+        if s != series:
+            continue
+        nxt = ds.views.get((series, user, ep + 1))
+        if nxt and nxt.first >= v.last:
+            hours.append((nxt.first - v.last).total_seconds() / 3600)
+    if not hours:
+        return None
+    return Gap(len(hours), median(hours), quantile(hours, 0.9))

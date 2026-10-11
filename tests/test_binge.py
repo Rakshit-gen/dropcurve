@@ -22,3 +22,20 @@ def test_sessions_split_on_gaps():
 
 def test_no_data():
     assert binge_stats(build([]), "s1") is None
+
+
+def test_time_to_next():
+    from dropcurve.binge import time_to_next
+
+    events = [
+        ev("a", 1, 600, 0),
+        ev("a", 2, 600, 60),
+        ev("b", 1, 600, 0),
+        ev("b", 2, 600, 60 * 10),
+        ev("c", 1, 600, 0),
+        ev("c", 2, 600, 60 * 48),
+    ]
+    g = time_to_next(build(events), "s1")
+    assert g.count == 3
+    assert g.median_hours == 10
+    assert round(g.p90_hours, 1) == 40.4
