@@ -1,6 +1,7 @@
 """Listening events: one row per progress ping from the player."""
 
 import csv
+import json
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -27,6 +28,10 @@ class Event:
     ts: datetime
 
 
+class EventError(ValueError):
+    pass
+
+
 def resolve_columns(header: list[str]) -> dict[str, str]:
     """Map our field names to the file's column names."""
     lower = {h.strip().lower(): h for h in header}
@@ -38,7 +43,7 @@ def resolve_columns(header: list[str]) -> dict[str, str]:
                 break
     missing = [f for f in REQUIRED if f not in cols]
     if missing:
-        raise ValueError(f"missing columns: {', '.join(missing)} (have: {', '.join(header)})")
+        raise EventError(f"missing columns: {', '.join(missing)} (have: {', '.join(header)})")
     return cols
 
 
@@ -58,41 +63,60 @@ def parse_ts(value) -> datetime:
 
 def parse_row(row: dict, cols: dict[str, str]) -> Event:
     dur = row.get(cols.get("duration", ""), "")
-    return Event(
-        user=row[cols["user"]],
-        series=row[cols["series"]],
+    e = Event(
+        user=str(row[cols["user"]]),
+        series=str(row[cols["series"]]),
         episode=int(row[cols["episode"]]),
         position=float(row[cols["position"]]),
         duration=float(dur) if dur not in ("", None) else None,
         ts=parse_ts(row[cols["ts"]]),
     )
+    if not e.user or not e.series:
+        raise ValueError("empty user or series")
+    if e.episode < 1:
+        raise ValueError(f"episode {e.episode}: episodes are numbered from 1")
+    if e.position < 0 or (e.duration is not None and e.duration <= 0):
+        raise ValueError("negative position or non-positive duration")
+    return e
 
 
-def read_csv(path) -> Iterator[Event]:
-    with open(path, newline="") as f:
-        reader = csv.DictReader(f)
-        cols = resolve_columns(reader.fieldnames or [])
-        for row in reader:
-            yield parse_row(row, cols)
-
-
-def read_jsonl(path) -> Iterator[Event]:
-    import json
-
-    cols = None
-    with open(path) as f:
-        for line in f:
-            if not line.strip():
-                continue
-            obj = json.loads(line)
-            if cols is None:
-                cols = resolve_columns(list(obj))
-            yield parse_row({k: ("" if v is None else v) for k, v in obj.items()}, cols)
-
-
-def read_events(path) -> Iterator[Event]:
-    """Read a .csv, .jsonl or .ndjson file of events."""
+def _rows(path) -> Iterator[tuple[int, dict]]:
+    """(line number, raw row) pairs from a CSV or JSONL file."""
     suffix = str(path).lower().rsplit(".", 1)[-1]
-    if suffix in ("jsonl", "ndjson"):
-        return read_jsonl(path)
-    return read_csv(path)
+    with open(path, newline="") as f:
+        if suffix in ("jsonl", "ndjson"):
+            for n, line in enumerate(f, 1):
+                if line.strip():
+                    try:
+                        obj = json.loads(line)
+                    except json.JSONDecodeError as e:
+                        obj = {"__error__": str(e)}
+                    yield n, {k: ("" if v is None else v) for k, v in obj.items()}
+        else:
+            reader = csv.DictReader(f)
+            for row in reader:
+                yield reader.line_num, row
+
+
+def read_events(path, errors: list[str] | None = None) -> Iterator[Event]:
+    """Read a .csv, .jsonl or .ndjson file of events.
+
+    Bad rows raise EventError naming the line, unless an `errors` list is
+    given; then they are recorded there and skipped.
+    """
+    cols = None
+    for line, row in _rows(path):
+        if cols is None and "__error__" not in row:
+            cols = resolve_columns(list(row))
+        try:
+            if "__error__" in row:
+                raise ValueError(row["__error__"])
+            yield parse_row(row, cols)
+        except (ValueError, KeyError, TypeError) as e:
+            msg = f"{path}:{line}: {e}"
+            if errors is None:
+                raise EventError(msg) from e
+            errors.append(msg)
+
+
+read_csv = read_jsonl = read_events

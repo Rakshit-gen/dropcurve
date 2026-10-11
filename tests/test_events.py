@@ -68,3 +68,34 @@ def test_jsonl(tmp_path):
     events = list(read_events(p))
     assert [e.user for e in events] == ["u1", "u2"]
     assert events[0].duration is None and events[1].duration == 900
+
+
+def test_bad_row_names_the_line(tmp_path):
+    from dropcurve.events import EventError, read_events
+
+    p = write(
+        tmp_path,
+        "user,series,episode,position,ts\n"
+        "u1,s1,1,10,2026-01-05T10:00:00\n"
+        "u1,s1,one,10,2026-01-05T10:00:00\n",
+    )
+    with pytest.raises(EventError, match=r"events.csv:3:"):
+        list(read_events(p))
+
+
+def test_bad_rows_can_be_collected(tmp_path):
+    from dropcurve.events import read_events
+
+    p = write(
+        tmp_path,
+        "user,series,episode,position,ts\n"
+        "u1,s1,1,10,2026-01-05T10:00:00\n"
+        "u1,s1,0,10,2026-01-05T10:00:00\n"
+        "u1,s1,2,-5,2026-01-05T10:00:00\n"
+        "u1,s1,2,5,not a date\n"
+        "u2,s1,2,5,2026-01-05T10:00:00\n",
+    )
+    errors = []
+    events = list(read_events(p, errors))
+    assert [e.user for e in events] == ["u1", "u2"]
+    assert len(errors) == 3 and errors[0].startswith(f"{p}:3:")
