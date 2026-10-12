@@ -40,3 +40,22 @@ def test_finds_the_slow_episode(ds):
     # Episode 6 is flagged too, and rightly: the people lost at its ad break
     # never finish it. Episode 14 is the one with no cliff, just a slow drain.
     assert [a.episode for a in found] == [6, 14]
+
+
+def test_picks_the_paywall_that_earns_most():
+    from dataclasses import replace
+
+    from dropcurve.paywall import compare, wall_results
+
+    t = replace(T, walls=(5, 8, 12))
+    walled = build(generate(6000, t, seed=11))
+    results = wall_results(walled, t.series)
+    assert [r.free for r in results] == [5, 8, 12]
+    # Conversion was planted at 6% per free episode, so it rises with the wall.
+    conv = [r.conversion for r in results]
+    assert conv == sorted(conv)
+    assert results[0].conversion == pytest.approx(0.30, abs=0.04)
+    # But the early wall reaches so many more people that it still wins.
+    verdict = compare(results)
+    assert verdict.best.free == 5
+    assert verdict.confident
