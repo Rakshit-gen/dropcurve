@@ -22,6 +22,14 @@ class Truth:
     cliffs: dict[int, tuple[float, float]] = field(default_factory=dict)  # ep -> (at, extra)
     weak_endings: dict[int, float] = field(default_factory=dict)  # ep -> pull instead
     drag: dict[int, float] = field(default_factory=dict)  # ep -> leave chance instead
+    # Paywall test: each listener gets one of these free-episode counts. Empty
+    # means everything is free. Deeper walls convert better, because whoever
+    # reaches them is already hooked, but fewer people get that far.
+    walls: tuple[int, ...] = ()
+    price: float = 15.0  # coins per unlocked episode
+    convert_per_episode: float = 0.06  # wall conversion = this * free episodes, capped
+    convert_cap: float = 0.8
+    keep_paying: float = 0.85  # chance a payer unlocks the next episode too
 
     @classmethod
     def demo(cls) -> "Truth":
@@ -58,7 +66,17 @@ def generate(
     for i in range(users):
         user = f"u{i:06d}"
         now = start + timedelta(seconds=rng.uniform(0, days * 86400))
+        free = rng.choice(t.walls) if t.walls else None
+        paying = False
         for ep in range(1, t.episodes + 1):
+            if free is not None and ep > free:
+                odds = t.keep_paying if paying else min(t.convert_cap, t.convert_per_episode * free)
+                if rng.random() >= odds:
+                    break
+                paying = True
+                events.append(
+                    Event(user, t.series, ep, 0.0, t.duration, now, "unlock", t.price, free)
+                )
             heard = _view(rng, t, ep)
             secs = heard * t.duration
             pos = 0.0
@@ -66,7 +84,13 @@ def generate(
                 pos = min(pos + ping, secs)
                 events.append(
                     Event(
-                        user, t.series, ep, round(pos, 1), t.duration, now + timedelta(seconds=pos)
+                        user,
+                        t.series,
+                        ep,
+                        round(pos, 1),
+                        t.duration,
+                        now + timedelta(seconds=pos),
+                        free=free,
                     )
                 )
                 if pos >= secs:
