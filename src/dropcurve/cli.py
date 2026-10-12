@@ -18,7 +18,7 @@ from .events import EventError, parse_ts, read_events, write_events
 from .funnel import funnel, listeners_by_episode
 from .hotspots import find_hotspots
 from .paywall import compare, paid_continuation, project, wall_results
-from .report import html_report
+from .report import html_report, mmss, pct
 from .survival import kaplan_meier, listeners, median_depth
 from .synth import Truth, generate
 from .views import Dataset, build
@@ -65,10 +65,6 @@ def load(args) -> tuple[Dataset, str]:
     if len(names) > 1:
         raise UsageError(f"{len(names)} series in the file, pick one with --series")
     return ds, names[0]
-
-
-def pct(x: float | None) -> str:
-    return "n/a" if x is None else f"{100 * x:.1f}%"
 
 
 def plain(obj):
@@ -133,10 +129,6 @@ def sparkline(values: list[float], width: int = 50) -> str:
     step = (len(values) - 1) / max(width - 1, 1)
     picks = [values[round(i * step)] for i in range(min(width, len(values)))]
     return "".join(BLOCKS[min(7, int(v * 8))] for v in picks)
-
-
-def mmss(seconds: float) -> str:
-    return f"{int(seconds // 60)}:{int(seconds % 60):02d}"
 
 
 def cmd_curve(args) -> int:
