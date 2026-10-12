@@ -5,6 +5,7 @@ import sys
 from dataclasses import replace
 
 from . import __version__
+from .cliffhanger import endings, score_endings
 from .curve import retention_curve
 from .events import EventError, read_events, write_events
 from .funnel import funnel
@@ -121,6 +122,21 @@ def cmd_funnel(args) -> int:
     return 0
 
 
+def cmd_endings(args) -> int:
+    ds, series = load(args)
+    ends = endings(ds, series)
+    score_endings(ends, min_finishers=args.min_finishers)
+    print(" ep  finishers  started next within 24h  verdict")
+    for e in ends:
+        lo, hi = e.ci
+        verdict = f"{e.verdict} (z = {e.z:.1f})" if e.verdict else ""
+        print(
+            f"{e.episode:3d}  {e.finishers:9d}  {pct(e.pull):>6}  ({100 * lo:.0f}-{100 * hi:.0f}%)"
+            f"{'':10}{verdict}".rstrip()
+        )
+    return 0
+
+
 def cmd_synth(args) -> int:
     truth = Truth.demo()
     if args.walls:
@@ -170,6 +186,16 @@ def parser() -> argparse.ArgumentParser:
     s = sub.add_parser("funnel", help="how far into the series people get")
     data_args(s)
     s.set_defaults(func=cmd_funnel)
+
+    s = sub.add_parser("endings", help="which episode endings pull people into the next one")
+    data_args(s)
+    s.add_argument(
+        "--min-finishers",
+        type=int,
+        default=30,
+        help="don't judge an ending with fewer finishers than this (30)",
+    )
+    s.set_defaults(func=cmd_endings)
     return p
 
 

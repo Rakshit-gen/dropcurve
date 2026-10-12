@@ -67,3 +67,9 @@ def test_funnel_table(demo, capsys):
     lines = capsys.readouterr().out.splitlines()
     assert lines[1].startswith("  1       1500  100.0%")
     assert lines[-1].endswith("  -")  # no next episode to go on to
+
+
+def test_endings_flags_the_weak_one(demo, capsys):
+    assert main(["endings", demo]) == 0
+    flagged = [line.split()[0] for line in capsys.readouterr().out.splitlines() if "weak" in line]
+    assert flagged == ["9"]
