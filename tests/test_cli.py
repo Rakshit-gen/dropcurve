@@ -161,3 +161,19 @@ def test_since_and_until_filter_by_time(demo, capsys):
     assert 0 < later < everyone
     with pytest.raises(SystemExit):
         main(["summary", demo, "--since", "last tuesday"])
+
+
+def test_catalog_supplies_missing_lengths(tmp_path, capsys):
+    events = tmp_path / "e.csv"
+    events.write_text(
+        "user,series,episode,position,ts\n"
+        "a,s,1,300,2026-01-05T10:00:00Z\n"
+        "b,s,1,600,2026-01-05T10:00:00Z\n"
+    )
+    assert main(["episodes", str(events), "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["episodes"][0]["starters"] == 0
+    catalog = tmp_path / "c.csv"
+    catalog.write_text("series,episode,duration\ns,1,600\n")
+    assert main(["episodes", str(events), "--json", "--catalog", str(catalog)]) == 0
+    ep = json.loads(capsys.readouterr().out)["episodes"][0]
+    assert ep["starters"] == 2 and ep["finishers"] == 1

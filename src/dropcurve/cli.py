@@ -9,6 +9,7 @@ from dataclasses import replace
 from . import __version__
 from .anomalies import anomalies
 from .binge import binge_stats, time_to_next
+from .catalog import apply_catalog, load_catalog
 from .cliffhanger import endings, score_endings
 from .cohorts import cohorts
 from .curve import retention_curve
@@ -43,6 +44,8 @@ def load(args) -> tuple[Dataset, str]:
             if (not args.since or e.ts >= args.since) and (not args.until or e.ts < args.until)
         )
     ds = build(events)
+    if args.catalog:
+        apply_catalog(ds, load_catalog(args.catalog))
     names = ds.series()
     if not names:
         raise UsageError(f"{args.events}: no listening events")
@@ -344,6 +347,7 @@ def data_args(s: argparse.ArgumentParser) -> None:
     s.add_argument("events", help="event log, .csv or .jsonl")
     s.add_argument("--series", help="which series, if the file has several")
     s.add_argument("--json", action="store_true", help="print JSON instead of a table")
+    s.add_argument("--catalog", help="CSV of series,episode,duration for players without lengths")
     s.add_argument("--since", type=when, help="only events at or after this time (ISO date)")
     s.add_argument("--until", type=when, help="only events before this time (ISO date)")
 
