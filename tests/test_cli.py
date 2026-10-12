@@ -207,3 +207,14 @@ def test_report_names_the_planted_problems(demo, tmp_path, capsys):
         assert finding in html
     assert "<h2>Inside episode 6</h2>" in html
     assert "Paywall test" not in html
+
+
+def test_export_writes_every_curve(demo, capsys):
+    import csv
+    import io
+
+    assert main(["export", demo]) == 0
+    rows = list(csv.DictReader(io.StringIO(capsys.readouterr().out)))
+    assert len(rows) == 30 * 101
+    first = rows[0]
+    assert (first["episode"], first["percent_in"], first["share_listening"]) == ("1", "0", "1.0000")

@@ -1,6 +1,7 @@
 """Command line entry point."""
 
 import argparse
+import csv
 import dataclasses
 import json
 import sys
@@ -336,6 +337,16 @@ def cmd_report(args) -> int:
     return 0
 
 
+def cmd_export(args) -> int:
+    ds, series = load(args)
+    writer = csv.writer(sys.stdout)
+    writer.writerow(["series", "episode", "percent_in", "share_listening"])
+    for ep in ds.episodes(series):
+        for i, share in enumerate(retention_curve(ds, series, ep)):
+            writer.writerow([series, ep, i, f"{share:.4f}"])
+    return 0
+
+
 def cmd_synth(args) -> int:
     truth = Truth.demo()
     if args.walls:
@@ -374,6 +385,10 @@ def parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--version", action="version", version=f"dropcurve {__version__}")
     sub = p.add_subparsers(dest="command", required=True)
+
+    s = sub.add_parser("export", help="every episode's retention curve as CSV, for a spreadsheet")
+    data_args(s)
+    s.set_defaults(func=cmd_export)
 
     s = sub.add_parser("report", help="write an HTML page with the findings and charts")
     data_args(s)
