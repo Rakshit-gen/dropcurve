@@ -122,3 +122,11 @@ def test_paywall_projection_is_labelled_a_model(tmp_path, capsys):
     assert "Model, not a measurement" in text
     walls = [line.split()[3] for line in text.splitlines() if "wall after episode" in line]
     assert walls == ["1", "2", "3", "4", "5"]
+
+
+def test_episodes_flags_the_slow_one(demo, capsys):
+    assert main(["episodes", demo]) == 0
+    lines = capsys.readouterr().out.splitlines()
+    flagged = [line.split()[0] for line in lines if "neighbours suggest" in line]
+    assert "14" in flagged
+    assert len(lines) == 31

@@ -5,10 +5,12 @@ import sys
 from dataclasses import replace
 
 from . import __version__
+from .anomalies import anomalies
 from .binge import binge_stats, time_to_next
 from .cliffhanger import endings, score_endings
 from .cohorts import cohorts
 from .curve import retention_curve
+from .episodes import episode_stats
 from .events import EventError, read_events, write_events
 from .funnel import funnel, listeners_by_episode
 from .hotspots import find_hotspots
@@ -46,6 +48,10 @@ def load(args) -> tuple[Dataset, str]:
 
 def pct(x: float | None) -> str:
     return "n/a" if x is None else f"{100 * x:.1f}%"
+
+
+def span(ci: tuple[float, float]) -> str:
+    return f"({100 * ci[0]:.0f}-{100 * ci[1]:.0f}%)"
 
 
 def cmd_summary(args) -> int:
@@ -90,6 +96,24 @@ def cmd_curve(args) -> int:
     for i in range(0, 101, 10):
         at = f"  ({mmss(duration * i / 100)})" if duration else ""
         print(f"  {i:3d}%{at}  {pct(curve[i])}")
+    return 0
+
+
+def cmd_episodes(args) -> int:
+    ds, series = load(args)
+    stats = episode_stats(ds, series)
+    odd = {a.episode: a for a in anomalies(stats, min_starters=args.min_starters)}
+    print(" ep  starters  finished (95% range)  bounced  median heard")
+    for st in stats:
+        heard = "n/a" if st.median_heard is None else f"{100 * st.median_heard:.0f}%"
+        line = (
+            f"{st.episode:3d}  {st.starters:8d}  {pct(st.completion):>8} {span(st.ci)}"
+            f"  {pct(st.bounce_rate):>7}  {heard:>12}"
+        )
+        if st.episode in odd:
+            a = odd[st.episode]
+            line += f"  low: neighbours suggest {pct(a.expected)}"
+        print(line)
     return 0
 
 
@@ -269,6 +293,16 @@ def parser() -> argparse.ArgumentParser:
     s = sub.add_parser("summary", help="the headline numbers for a series")
     data_args(s)
     s.set_defaults(func=cmd_summary)
+
+    s = sub.add_parser("episodes", help="completion and bounce per episode, flagging odd ones")
+    data_args(s)
+    s.add_argument(
+        "--min-starters",
+        type=int,
+        default=50,
+        help="don't flag episodes with fewer starters than this (50)",
+    )
+    s.set_defaults(func=cmd_episodes)
 
     s = sub.add_parser("curve", help="the retention curve inside one episode")
     data_args(s)
