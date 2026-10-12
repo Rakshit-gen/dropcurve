@@ -27,7 +27,7 @@ def test_weak_ending_stands_out():
     from dropcurve.cliffhanger import Ending, score_endings
 
     ends = [Ending(ep, 400, 280) for ep in range(1, 9)]
-    ends[4] = Ending(5, 400, 200)  # 50% pull against ~70% everywhere else
+    ends[4] = Ending(5, 400, 200)  # 50% pull against 70% everywhere else
     ends[6] = Ending(7, 20, 5)  # bad, but too few finishers to call
     score_endings(ends)
     assert [e.episode for e in ends if e.verdict == "weak"] == [5]

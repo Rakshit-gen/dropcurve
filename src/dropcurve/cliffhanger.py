@@ -53,21 +53,29 @@ def endings(
 
 
 def score_endings(ends: list[Ending], z_cut: float = 2.58, min_finishers: int = 30) -> None:
-    """Compare each ending with the pooled rest of the season (two-proportion z).
+    """Compare each ending's pull with the season's median pull.
 
-    The default cut of 2.58 (99%) keeps a 40-episode season from crying wolf
-    on two or three endings by chance alone.
+    The median, not the pooled average: one very weak ending would drag a
+    pooled average down and make every ordinary ending look strong. The cut
+    of 2.58 (99%) keeps a 40-episode season from crying wolf by chance.
     """
-    from .stats import two_proportion_z
+    import math
 
-    total_f = sum(e.finishers for e in ends)
-    total_p = sum(e.pulled for e in ends)
+    from .stats import median
+
+    usable = [e.pull for e in ends if e.finishers >= min_finishers]
+    if not usable:
+        return
+    p0 = median(usable)
     for e in ends:
-        rest_f, rest_p = total_f - e.finishers, total_p - e.pulled
-        e.z = two_proportion_z(e.pulled, e.finishers, rest_p, rest_f)
+        e.verdict = ""
+        if not e.finishers or p0 in (0.0, 1.0):
+            e.z = 0.0
+            continue
+        e.z = (e.pull - p0) / math.sqrt(p0 * (1 - p0) / e.finishers)
         if e.finishers < min_finishers:
-            e.verdict = ""
-        elif e.z <= -z_cut:
+            continue
+        if e.z <= -z_cut:
             e.verdict = "weak"
         elif e.z >= z_cut:
             e.verdict = "strong"
