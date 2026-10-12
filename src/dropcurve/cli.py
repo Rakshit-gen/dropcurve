@@ -36,7 +36,8 @@ def _ints(text: str) -> tuple[int, ...]:
 
 def load(args) -> tuple[Dataset, str]:
     """Read the events file and pick the series to analyse."""
-    events = read_events(args.events)
+    errors: list[str] | None = [] if args.max_errors else None
+    events = read_events(args.events, errors)
     if args.since or args.until:
         events = (
             e
@@ -44,6 +45,13 @@ def load(args) -> tuple[Dataset, str]:
             if (not args.since or e.ts >= args.since) and (not args.until or e.ts < args.until)
         )
     ds = build(events)
+    if errors:
+        for e in errors[:3]:
+            print(f"dropcurve: skipped {e}", file=sys.stderr)
+        if len(errors) > 3:
+            print(f"dropcurve: skipped {len(errors) - 3} more bad rows", file=sys.stderr)
+        if len(errors) > args.max_errors:
+            raise UsageError(f"{len(errors)} bad rows, more than --max-errors {args.max_errors}")
     if args.catalog:
         apply_catalog(ds, load_catalog(args.catalog))
     names = ds.series()
@@ -347,6 +355,12 @@ def data_args(s: argparse.ArgumentParser) -> None:
     s.add_argument("events", help="event log, .csv or .jsonl")
     s.add_argument("--series", help="which series, if the file has several")
     s.add_argument("--json", action="store_true", help="print JSON instead of a table")
+    s.add_argument(
+        "--max-errors",
+        type=int,
+        default=0,
+        help="skip up to this many bad rows instead of stopping at the first (0)",
+    )
     s.add_argument("--catalog", help="CSV of series,episode,duration for players without lengths")
     s.add_argument("--since", type=when, help="only events at or after this time (ISO date)")
     s.add_argument("--until", type=when, help="only events before this time (ISO date)")
