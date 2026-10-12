@@ -52,3 +52,11 @@ def test_curve(demo, capsys):
     assert lines[0] == "the-last-heir episode 6: share of starters still listening"
     assert lines[2].strip() == "0%  (0:00)  100.0%"
     assert main(["curve", demo, "99"]) == 2
+
+
+def test_hotspots_lists_the_planted_cliff(demo, capsys):
+    assert main(["hotspots", demo]) == 0
+    out = capsys.readouterr().out
+    assert out.startswith("episode   6    41-42%   3:16-3:21  lost ")
+    assert main(["hotspots", demo, "--episode", "3"]) == 0
+    assert capsys.readouterr().out.startswith("no hotspots")

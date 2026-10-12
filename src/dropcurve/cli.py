@@ -8,6 +8,7 @@ from . import __version__
 from .curve import retention_curve
 from .events import EventError, read_events, write_events
 from .funnel import funnel
+from .hotspots import find_hotspots
 from .survival import kaplan_meier, listeners, median_depth
 from .synth import Truth, generate
 from .views import Dataset, build
@@ -88,6 +89,24 @@ def cmd_curve(args) -> int:
     return 0
 
 
+def cmd_hotspots(args) -> int:
+    ds, series = load(args)
+    eps = [args.episode] if args.episode else ds.episodes(series)
+    found = 0
+    for ep in eps:
+        for h in find_hotspots(ds, series, ep, factor=args.factor):
+            where = f"{mmss(h.seconds[0])}-{mmss(h.seconds[1])}" if h.seconds else ""
+            span = f"{100 * h.start:.0f}-{100 * h.end:.0f}%"
+            print(
+                f"episode {ep:3d}  {span:>8} {where:>11}  lost {pct(h.drop)} of starters"
+                f" ({h.excess:.0f}x the usual rate)"
+            )
+            found += 1
+    if not found:
+        print("no hotspots: listeners leave at a steady rate")
+    return 0
+
+
 def cmd_synth(args) -> int:
     truth = Truth.demo()
     if args.walls:
@@ -125,6 +144,14 @@ def parser() -> argparse.ArgumentParser:
     data_args(s)
     s.add_argument("episode", type=int)
     s.set_defaults(func=cmd_curve)
+
+    s = sub.add_parser("hotspots", help="moments where listeners leave much faster than usual")
+    data_args(s)
+    s.add_argument("--episode", type=int, help="only this episode")
+    s.add_argument(
+        "--factor", type=float, default=3.0, help="how many times the usual loss rate (3)"
+    )
+    s.set_defaults(func=cmd_hotspots)
     return p
 
 
