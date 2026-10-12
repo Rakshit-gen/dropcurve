@@ -73,3 +73,11 @@ def test_endings_flags_the_weak_one(demo, capsys):
     assert main(["endings", demo]) == 0
     flagged = [line.split()[0] for line in capsys.readouterr().out.splitlines() if "weak" in line]
     assert flagged == ["9"]
+
+
+def test_survival_table(demo, capsys):
+    assert main(["survival", demo]) == 0
+    out = capsys.readouterr().out.splitlines()
+    assert out[0].startswith("1500 listeners, ")
+    assert out[2].startswith("  1     1500")
+    assert out[-1].startswith("half of new listeners don't get past episode ")

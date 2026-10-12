@@ -137,6 +137,27 @@ def cmd_endings(args) -> int:
     return 0
 
 
+def cmd_survival(args) -> int:
+    ds, series = load(args)
+    people = listeners(ds, series, active_days=args.active_days)
+    km = kaplan_meier(people)
+    churned = sum(p.churned for p in people)
+    print(
+        f"{len(people)} listeners, {churned} gone, {len(people) - churned} still active"
+        f" or caught up (counted until they stopped, not as lost)"
+    )
+    print(" ep  at risk  lost  still listening after it (95% range)")
+    for p in km:
+        print(
+            f"{p.episode:3d}  {p.at_risk:7d}  {p.lost:4d}  {pct(p.survival):>6}"
+            f"  ({100 * p.low:.0f}-{100 * p.high:.0f}%)"
+        )
+    depth = median_depth(km)
+    if depth is not None:
+        print(f"half of new listeners don't get past episode {depth}")
+    return 0
+
+
 def cmd_synth(args) -> int:
     truth = Truth.demo()
     if args.walls:
@@ -196,6 +217,16 @@ def parser() -> argparse.ArgumentParser:
         help="don't judge an ending with fewer finishers than this (30)",
     )
     s.set_defaults(func=cmd_endings)
+
+    s = sub.add_parser("survival", help="Kaplan-Meier: how deep new listeners get")
+    data_args(s)
+    s.add_argument(
+        "--active-days",
+        type=float,
+        default=7.0,
+        help="seen this recently = still active, not lost (7)",
+    )
+    s.set_defaults(func=cmd_survival)
     return p
 
 
