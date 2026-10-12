@@ -11,6 +11,9 @@ license = "MIT"
 requires-python = ">=3.11"
 dependencies = []
 
+[project.scripts]
+dropcurve = "dropcurve.cli:main"
+
 [dependency-groups]
 dev = [
     "pytest>=8",
