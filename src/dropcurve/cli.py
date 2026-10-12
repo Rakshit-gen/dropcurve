@@ -5,8 +5,15 @@ import sys
 from dataclasses import replace
 
 from . import __version__
-from .events import write_events
+from .events import EventError, read_events, write_events
+from .funnel import funnel
+from .survival import kaplan_meier, listeners, median_depth
 from .synth import Truth, generate
+from .views import Dataset, build
+
+
+class UsageError(Exception):
+    pass
 
 
 def _ints(text: str) -> tuple[int, ...]:
@@ -14,6 +21,40 @@ def _ints(text: str) -> tuple[int, ...]:
         return tuple(int(x) for x in text.split(",") if x.strip())
     except ValueError:
         raise argparse.ArgumentTypeError(f"expected numbers like 5,8,12, got {text!r}") from None
+
+
+def load(args) -> tuple[Dataset, str]:
+    """Read the events file and pick the series to analyse."""
+    ds = build(read_events(args.events))
+    names = ds.series()
+    if not names:
+        raise UsageError(f"{args.events}: no listening events")
+    if args.series:
+        if args.series not in names:
+            raise UsageError(f"no series {args.series!r} (have: {', '.join(names)})")
+        return ds, args.series
+    if len(names) > 1:
+        raise UsageError(f"{len(names)} series in the file, pick one with --series")
+    return ds, names[0]
+
+
+def pct(x: float | None) -> str:
+    return "n/a" if x is None else f"{100 * x:.1f}%"
+
+
+def cmd_summary(args) -> int:
+    ds, series = load(args)
+    steps = funnel(ds, series)
+    km = kaplan_meier(listeners(ds, series))
+    depth = median_depth(km)
+    print(f"{series}: {steps[0].listeners} listeners, {len(steps)} episodes")
+    print(f"  finished episode 1      {pct(steps[0].finished / steps[0].listeners)}")
+    print(f"  started the last one    {pct(steps[-1].reach)}")
+    if depth is None:
+        print("  median depth            more than half are still going")
+    else:
+        print(f"  median depth            half don't get past episode {depth}")
+    return 0
 
 
 def cmd_synth(args) -> int:
@@ -39,12 +80,21 @@ def parser() -> argparse.ArgumentParser:
     s.add_argument("--seed", type=int, default=7)
     s.add_argument("--walls", type=_ints, help="paywall variants to test, e.g. 5,8,12")
     s.set_defaults(func=cmd_synth)
+
+    s = sub.add_parser("summary", help="the headline numbers for a series")
+    s.add_argument("events", help="event log, .csv or .jsonl")
+    s.add_argument("--series", help="which series, if the file has several")
+    s.set_defaults(func=cmd_summary)
     return p
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
-    return args.func(args)
+    try:
+        return args.func(args)
+    except (UsageError, EventError, OSError) as e:
+        print(f"dropcurve: {e}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":
