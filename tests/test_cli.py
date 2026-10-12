@@ -195,3 +195,15 @@ def test_max_errors(tmp_path, capsys):
     out = capsys.readouterr()
     assert out.out.startswith("s: 1 listeners")
     assert out.err.count("skipped") == 2
+
+
+def test_report_names_the_planted_problems(demo, tmp_path, capsys):
+    out = tmp_path / "r.html"
+    assert main(["report", demo, "-o", str(out)]) == 0
+    html = out.read_text()
+    assert html.startswith("<!doctype html>")
+    assert "<h1>the-last-heir</h1>" in html
+    for finding in ("episode 6</td><td>drop at 3:16", "episode 9</td><td>weak ending"):
+        assert finding in html
+    assert "<h2>Inside episode 6</h2>" in html
+    assert "Paywall test" not in html

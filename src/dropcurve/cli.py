@@ -18,6 +18,7 @@ from .events import EventError, parse_ts, read_events, write_events
 from .funnel import funnel, listeners_by_episode
 from .hotspots import find_hotspots
 from .paywall import compare, paid_continuation, project, wall_results
+from .report import html_report
 from .survival import kaplan_meier, listeners, median_depth
 from .synth import Truth, generate
 from .views import Dataset, build
@@ -335,6 +336,14 @@ def print_projection(ds: Dataset, series: str, results, best) -> None:
         )
 
 
+def cmd_report(args) -> int:
+    ds, series = load(args)
+    with open(args.out, "w") as f:
+        f.write(html_report(ds, series, source=args.events))
+    print(f"wrote {args.out}")
+    return 0
+
+
 def cmd_synth(args) -> int:
     truth = Truth.demo()
     if args.walls:
@@ -373,6 +382,11 @@ def parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--version", action="version", version=f"dropcurve {__version__}")
     sub = p.add_subparsers(dest="command", required=True)
+
+    s = sub.add_parser("report", help="write an HTML page with the findings and charts")
+    data_args(s)
+    s.add_argument("-o", "--out", default="dropcurve.html", help="output file (dropcurve.html)")
+    s.set_defaults(func=cmd_report)
 
     s = sub.add_parser("synth", help="write a demo event log with known problems planted in it")
     s.add_argument("out", help="output file, .csv or .jsonl")
