@@ -5,6 +5,7 @@ import sys
 from dataclasses import replace
 
 from . import __version__
+from .curve import retention_curve
 from .events import EventError, read_events, write_events
 from .funnel import funnel
 from .survival import kaplan_meier, listeners, median_depth
@@ -57,6 +58,36 @@ def cmd_summary(args) -> int:
     return 0
 
 
+BLOCKS = "▁▂▃▄▅▆▇█"
+
+
+def sparkline(values: list[float], width: int = 50) -> str:
+    """Values in 0..1 as a row of block characters."""
+    if not values:
+        return ""
+    step = (len(values) - 1) / max(width - 1, 1)
+    picks = [values[round(i * step)] for i in range(min(width, len(values)))]
+    return "".join(BLOCKS[min(7, int(v * 8))] for v in picks)
+
+
+def mmss(seconds: float) -> str:
+    return f"{int(seconds // 60)}:{int(seconds % 60):02d}"
+
+
+def cmd_curve(args) -> int:
+    ds, series = load(args)
+    curve = retention_curve(ds, series, args.episode)
+    if not curve:
+        raise UsageError(f"no listens with a known length for episode {args.episode}")
+    duration = ds.durations.get((series, args.episode))
+    print(f"{series} episode {args.episode}: share of starters still listening")
+    print(f"  {sparkline(curve)}")
+    for i in range(0, 101, 10):
+        at = f"  ({mmss(duration * i / 100)})" if duration else ""
+        print(f"  {i:3d}%{at}  {pct(curve[i])}")
+    return 0
+
+
 def cmd_synth(args) -> int:
     truth = Truth.demo()
     if args.walls:
@@ -64,6 +95,11 @@ def cmd_synth(args) -> int:
     n = write_events(generate(args.users, truth, seed=args.seed), args.out)
     print(f"wrote {n} events from {args.users} listeners to {args.out}")
     return 0
+
+
+def data_args(s: argparse.ArgumentParser) -> None:
+    s.add_argument("events", help="event log, .csv or .jsonl")
+    s.add_argument("--series", help="which series, if the file has several")
 
 
 def parser() -> argparse.ArgumentParser:
@@ -82,9 +118,13 @@ def parser() -> argparse.ArgumentParser:
     s.set_defaults(func=cmd_synth)
 
     s = sub.add_parser("summary", help="the headline numbers for a series")
-    s.add_argument("events", help="event log, .csv or .jsonl")
-    s.add_argument("--series", help="which series, if the file has several")
+    data_args(s)
     s.set_defaults(func=cmd_summary)
+
+    s = sub.add_parser("curve", help="the retention curve inside one episode")
+    data_args(s)
+    s.add_argument("episode", type=int)
+    s.set_defaults(func=cmd_curve)
     return p
 
 

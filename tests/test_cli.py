@@ -37,3 +37,18 @@ def test_unknown_series_and_missing_file(demo, capsys):
     assert main(["summary", demo, "--series", "nope"]) == 2
     assert "no series 'nope'" in capsys.readouterr().err
     assert main(["summary", "missing.csv"]) == 2
+
+
+def test_sparkline_scales_to_blocks():
+    from dropcurve.cli import sparkline
+
+    assert sparkline([1.0, 0.5, 0.0], width=3) == "█▅▁"
+    assert len(sparkline([0.5] * 101)) == 50
+
+
+def test_curve(demo, capsys):
+    assert main(["curve", demo, "6"]) == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0] == "the-last-heir episode 6: share of starters still listening"
+    assert lines[2].strip() == "0%  (0:00)  100.0%"
+    assert main(["curve", demo, "99"]) == 2
