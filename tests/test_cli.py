@@ -111,3 +111,14 @@ def test_paywall(tmp_path, capsys):
 def test_paywall_without_variants(demo, capsys):
     assert main(["paywall", demo]) == 2
     assert "no paywall variants" in capsys.readouterr().err
+
+
+def test_paywall_projection_is_labelled_a_model(tmp_path, capsys):
+    out = str(tmp_path / "walls.csv")
+    main(["synth", out, "--users", "1500", "--seed", "11", "--walls", "4,6"])
+    capsys.readouterr()
+    assert main(["paywall", out, "--project"]) == 0
+    text = capsys.readouterr().out
+    assert "Model, not a measurement" in text
+    walls = [line.split()[3] for line in text.splitlines() if "wall after episode" in line]
+    assert walls == ["1", "2", "3", "4", "5"]

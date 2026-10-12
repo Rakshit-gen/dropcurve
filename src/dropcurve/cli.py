@@ -10,9 +10,9 @@ from .cliffhanger import endings, score_endings
 from .cohorts import cohorts
 from .curve import retention_curve
 from .events import EventError, read_events, write_events
-from .funnel import funnel
+from .funnel import funnel, listeners_by_episode
 from .hotspots import find_hotspots
-from .paywall import compare, wall_results
+from .paywall import compare, paid_continuation, project, wall_results
 from .survival import kaplan_meier, listeners, median_depth
 from .synth import Truth, generate
 from .views import Dataset, build
@@ -204,8 +204,37 @@ def cmd_paywall(args) -> int:
             f"{r.free:8d}  {r.starters:8d}  {r.reached:8d}  {r.payers:4d}  {pct(r.conversion):>10}"
             f" ({100 * lo:.0f}-{100 * hi:.0f}%)  {r.per_starter:12.2f} +- {1.96 * r.se:.2f}"
         )
-    print(compare(results).describe())
+    verdict = compare(results)
+    print(verdict.describe())
+    if args.project:
+        print_projection(ds, series, results, verdict.best)
     return 0
+
+
+def print_projection(ds: Dataset, series: str, results, best) -> None:
+    """Model other wall positions from what the most generous variant saw."""
+    widest = max(results, key=lambda r: r.free)
+    group = {u for (s, u), free in ds.walls.items() if s == series and free == widest.free}
+    by_ep = listeners_by_episode(ds, series)
+    reach = {
+        ep: len(by_ep.get(ep, set()) & group) / widest.starters for ep in range(1, widest.free + 1)
+    }
+    unlocks = [c for (s, _, _), c in ds.unlocks.items() if s == series]
+    q = paid_continuation(ds, series)
+    if not unlocks or q is None or not best.reached:
+        print("not enough paid unlocks to model other wall positions")
+        return
+    price = sum(unlocks) / len(unlocks)
+    last = max(ds.episodes(series))
+    print(
+        f"\nModel, not a measurement: if conversion stayed at {pct(best.conversion)} and payers"
+        f" kept unlocking at {pct(q)}, at {price:.0f} coins an episode:"
+    )
+    for p in project(reach, last, best.conversion, q, price, range(1, widest.free)):
+        print(
+            f"  wall after episode {p.free:2d}  reaches {pct(p.reach):>6}"
+            f"  ~{p.coins_per_starter:.2f} coins per starter"
+        )
 
 
 def cmd_synth(args) -> int:
@@ -296,6 +325,9 @@ def parser() -> argparse.ArgumentParser:
     data_args(s)
     s.add_argument(
         "--free", type=int, help="free episodes for listeners the data doesn't say (no test)"
+    )
+    s.add_argument(
+        "--project", action="store_true", help="also model wall positions that weren't tested"
     )
     s.set_defaults(func=cmd_paywall)
     return p
