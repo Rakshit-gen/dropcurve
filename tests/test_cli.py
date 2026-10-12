@@ -96,3 +96,18 @@ def test_cohorts(demo, capsys):
     assert lines[0].split() == ["week", "listeners", "ep", "2", "ep", "5"]
     assert lines[1].startswith("2026-W02")
     assert sum(int(line.split()[1]) for line in lines[1:]) == 1500
+
+
+def test_paywall(tmp_path, capsys):
+    out = str(tmp_path / "walls.csv")
+    main(["synth", out, "--users", "3000", "--seed", "11", "--walls", "5,12"])
+    capsys.readouterr()
+    assert main(["paywall", out]) == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert [line.split()[0] for line in lines[1:3]] == ["5", "12"]
+    assert lines[-1].startswith("5 free episodes earns ")
+
+
+def test_paywall_without_variants(demo, capsys):
+    assert main(["paywall", demo]) == 2
+    assert "no paywall variants" in capsys.readouterr().err

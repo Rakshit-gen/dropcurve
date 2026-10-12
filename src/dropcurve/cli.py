@@ -12,6 +12,7 @@ from .curve import retention_curve
 from .events import EventError, read_events, write_events
 from .funnel import funnel
 from .hotspots import find_hotspots
+from .paywall import compare, wall_results
 from .survival import kaplan_meier, listeners, median_depth
 from .synth import Truth, generate
 from .views import Dataset, build
@@ -189,6 +190,24 @@ def cmd_cohorts(args) -> int:
     return 0
 
 
+def cmd_paywall(args) -> int:
+    ds, series = load(args)
+    results = wall_results(ds, series, default_free=args.free)
+    if not results:
+        raise UsageError(
+            "no paywall variants in the data: add a free_episodes column, or pass --free"
+        )
+    print("free eps  starters  met wall  paid  conversion (95% range)  coins per starter")
+    for r in results:
+        lo, hi = r.conversion_ci
+        print(
+            f"{r.free:8d}  {r.starters:8d}  {r.reached:8d}  {r.payers:4d}  {pct(r.conversion):>10}"
+            f" ({100 * lo:.0f}-{100 * hi:.0f}%)  {r.per_starter:12.2f} +- {1.96 * r.se:.2f}"
+        )
+    print(compare(results).describe())
+    return 0
+
+
 def cmd_synth(args) -> int:
     truth = Truth.demo()
     if args.walls:
@@ -272,6 +291,13 @@ def parser() -> argparse.ArgumentParser:
         help="episodes to show reach for (2,3,5,10)",
     )
     s.set_defaults(func=cmd_cohorts)
+
+    s = sub.add_parser("paywall", help="compare free-episode variants by coins per new listener")
+    data_args(s)
+    s.add_argument(
+        "--free", type=int, help="free episodes for listeners the data doesn't say (no test)"
+    )
+    s.set_defaults(func=cmd_paywall)
     return p
 
 
