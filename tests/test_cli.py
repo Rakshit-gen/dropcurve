@@ -88,3 +88,11 @@ def test_binge(demo, capsys):
     out = capsys.readouterr().out
     assert "listening sessions" in out
     assert "time to next episode    median " in out
+
+
+def test_cohorts(demo, capsys):
+    assert main(["cohorts", demo, "--milestones", "2,5"]) == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0].split() == ["week", "listeners", "ep", "2", "ep", "5"]
+    assert lines[1].startswith("2026-W02")
+    assert sum(int(line.split()[1]) for line in lines[1:]) == 1500

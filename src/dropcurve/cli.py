@@ -7,6 +7,7 @@ from dataclasses import replace
 from . import __version__
 from .binge import binge_stats, time_to_next
 from .cliffhanger import endings, score_endings
+from .cohorts import cohorts
 from .curve import retention_curve
 from .events import EventError, read_events, write_events
 from .funnel import funnel
@@ -177,6 +178,17 @@ def cmd_binge(args) -> int:
     return 0
 
 
+def cmd_cohorts(args) -> int:
+    ds, series = load(args)
+    groups = cohorts(ds, series, milestones=args.milestones)
+    print("week      listeners  " + "".join(f"  {'ep ' + str(k):>6}" for k in args.milestones))
+    for c in groups:
+        print(
+            f"{c.week}  {c.size:9d}  " + "".join(f"  {pct(c.reach[k]):>6}" for k in args.milestones)
+        )
+    return 0
+
+
 def cmd_synth(args) -> int:
     truth = Truth.demo()
     if args.walls:
@@ -250,6 +262,16 @@ def parser() -> argparse.ArgumentParser:
     s = sub.add_parser("binge", help="episodes per sitting and time between episodes")
     data_args(s)
     s.set_defaults(func=cmd_binge)
+
+    s = sub.add_parser("cohorts", help="how far people get, by the week they arrived")
+    data_args(s)
+    s.add_argument(
+        "--milestones",
+        type=_ints,
+        default=(2, 3, 5, 10),
+        help="episodes to show reach for (2,3,5,10)",
+    )
+    s.set_defaults(func=cmd_cohorts)
     return p
 
 
