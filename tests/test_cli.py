@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from dropcurve.cli import main
@@ -130,3 +132,19 @@ def test_episodes_flags_the_slow_one(demo, capsys):
     flagged = [line.split()[0] for line in lines if "neighbours suggest" in line]
     assert "14" in flagged
     assert len(lines) == 31
+
+
+@pytest.mark.parametrize(
+    "command",
+    ["summary", "episodes", "hotspots", "funnel", "endings", "survival", "binge", "cohorts"],
+)
+def test_every_command_can_print_json(demo, capsys, command):
+    assert main([command, demo, "--json"]) == 0
+    json.loads(capsys.readouterr().out)
+
+
+def test_json_includes_computed_fields(demo, capsys):
+    main(["endings", demo, "--json"])
+    ends = json.loads(capsys.readouterr().out)
+    weak = [e for e in ends if e["verdict"] == "weak"]
+    assert weak[0]["episode"] == 9 and 0 < weak[0]["pull"] < 0.5

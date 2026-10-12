@@ -1,6 +1,8 @@
 """Command line entry point."""
 
 import argparse
+import dataclasses
+import json
 import sys
 from dataclasses import replace
 
@@ -50,6 +52,28 @@ def pct(x: float | None) -> str:
     return "n/a" if x is None else f"{100 * x:.1f}%"
 
 
+def plain(obj):
+    """Dataclasses (with their computed properties), tuples and dicts as JSON values."""
+    if dataclasses.is_dataclass(obj):
+        out = {f.name: plain(getattr(obj, f.name)) for f in dataclasses.fields(obj)}
+        for name, attr in vars(type(obj)).items():
+            if isinstance(attr, property):
+                out[name] = plain(getattr(obj, name))
+        return out
+    if isinstance(obj, dict):
+        return {str(k): plain(v) for k, v in obj.items()}
+    if isinstance(obj, list | tuple):
+        return [plain(v) for v in obj]
+    if isinstance(obj, float) and obj == float("inf"):
+        return None
+    return obj
+
+
+def emit(value) -> int:
+    print(json.dumps(plain(value), indent=2))
+    return 0
+
+
 def span(ci: tuple[float, float]) -> str:
     return f"({100 * ci[0]:.0f}-{100 * ci[1]:.0f}%)"
 
@@ -59,6 +83,17 @@ def cmd_summary(args) -> int:
     steps = funnel(ds, series)
     km = kaplan_meier(listeners(ds, series))
     depth = median_depth(km)
+    if args.json:
+        return emit(
+            {
+                "series": series,
+                "listeners": steps[0].listeners,
+                "episodes": len(steps),
+                "finished_episode_1": steps[0].finished / steps[0].listeners,
+                "reach_last_episode": steps[-1].reach,
+                "median_depth": depth,
+            }
+        )
     print(f"{series}: {steps[0].listeners} listeners, {len(steps)} episodes")
     print(f"  finished episode 1      {pct(steps[0].finished / steps[0].listeners)}")
     print(f"  started the last one    {pct(steps[-1].reach)}")
@@ -91,6 +126,8 @@ def cmd_curve(args) -> int:
     if not curve:
         raise UsageError(f"no listens with a known length for episode {args.episode}")
     duration = ds.durations.get((series, args.episode))
+    if args.json:
+        return emit({"series": series, "episode": args.episode, "curve": curve})
     print(f"{series} episode {args.episode}: share of starters still listening")
     print(f"  {sparkline(curve)}")
     for i in range(0, 101, 10):
@@ -103,6 +140,8 @@ def cmd_episodes(args) -> int:
     ds, series = load(args)
     stats = episode_stats(ds, series)
     odd = {a.episode: a for a in anomalies(stats, min_starters=args.min_starters)}
+    if args.json:
+        return emit({"episodes": stats, "anomalies": list(odd.values())})
     print(" ep  starters  finished (95% range)  bounced  median heard")
     for st in stats:
         heard = "n/a" if st.median_heard is None else f"{100 * st.median_heard:.0f}%"
@@ -120,16 +159,16 @@ def cmd_episodes(args) -> int:
 def cmd_hotspots(args) -> int:
     ds, series = load(args)
     eps = [args.episode] if args.episode else ds.episodes(series)
-    found = 0
-    for ep in eps:
-        for h in find_hotspots(ds, series, ep, factor=args.factor):
-            where = f"{mmss(h.seconds[0])}-{mmss(h.seconds[1])}" if h.seconds else ""
-            span = f"{100 * h.start:.0f}-{100 * h.end:.0f}%"
-            print(
-                f"episode {ep:3d}  {span:>8} {where:>11}  lost {pct(h.drop)} of starters"
-                f" ({h.excess:.0f}x the usual rate)"
-            )
-            found += 1
+    found = [(ep, h) for ep in eps for h in find_hotspots(ds, series, ep, factor=args.factor)]
+    if args.json:
+        return emit([{"episode": ep, **plain(h)} for ep, h in found])
+    for ep, h in found:
+        where = f"{mmss(h.seconds[0])}-{mmss(h.seconds[1])}" if h.seconds else ""
+        part = f"{100 * h.start:.0f}-{100 * h.end:.0f}%"
+        print(
+            f"episode {ep:3d}  {part:>8} {where:>11}  lost {pct(h.drop)} of starters"
+            f" ({h.excess:.0f}x the usual rate)"
+        )
     if not found:
         print("no hotspots: listeners leave at a steady rate")
     return 0
@@ -137,8 +176,11 @@ def cmd_hotspots(args) -> int:
 
 def cmd_funnel(args) -> int:
     ds, series = load(args)
+    steps = funnel(ds, series)
+    if args.json:
+        return emit(steps)
     print(" ep  listeners   reach  finished  went on to next (95% range)")
-    for st in funnel(ds, series):
+    for st in steps:
         done = st.finished / st.listeners if st.listeners else None
         if st.continuation is None:
             nxt = "-"
@@ -152,6 +194,8 @@ def cmd_endings(args) -> int:
     ds, series = load(args)
     ends = endings(ds, series)
     score_endings(ends, min_finishers=args.min_finishers)
+    if args.json:
+        return emit(ends)
     print(" ep  finishers  started next within 24h  verdict")
     for e in ends:
         verdict = f"{e.verdict} (z = {e.z:.1f})" if e.verdict else ""
@@ -167,6 +211,15 @@ def cmd_survival(args) -> int:
     people = listeners(ds, series, active_days=args.active_days)
     km = kaplan_meier(people)
     churned = sum(p.churned for p in people)
+    if args.json:
+        return emit(
+            {
+                "listeners": len(people),
+                "lost": churned,
+                "median_depth": median_depth(km),
+                "table": km,
+            }
+        )
     print(
         f"{len(people)} listeners, {churned} gone, {len(people) - churned} still active"
         f" or caught up (counted until they stopped, not as lost)"
@@ -187,6 +240,8 @@ def cmd_binge(args) -> int:
     ds, series = load(args)
     b = binge_stats(ds, series)
     gap = time_to_next(ds, series)
+    if args.json:
+        return emit({"sessions": b, "time_to_next": gap})
     print(f"{b.sessions} listening sessions (a gap of 30 minutes or more starts a new one)")
     print(
         f"  episodes per session    median {b.median_episodes:g},"
@@ -204,6 +259,8 @@ def cmd_binge(args) -> int:
 def cmd_cohorts(args) -> int:
     ds, series = load(args)
     groups = cohorts(ds, series, milestones=args.milestones)
+    if args.json:
+        return emit(groups)
     print("week      listeners  " + "".join(f"  {'ep ' + str(k):>6}" for k in args.milestones))
     for c in groups:
         print(
@@ -219,13 +276,15 @@ def cmd_paywall(args) -> int:
         raise UsageError(
             "no paywall variants in the data: add a free_episodes column, or pass --free"
         )
+    verdict = compare(results)
+    if args.json:
+        return emit({"variants": results, "verdict": verdict, "summary": verdict.describe()})
     print("free eps  starters  met wall  paid  conversion (95% range)  coins per starter")
     for r in results:
         print(
             f"{r.free:8d}  {r.starters:8d}  {r.reached:8d}  {r.payers:4d}  {pct(r.conversion):>10}"
             f" {span(r.conversion_ci)}  {r.per_starter:12.2f} +- {1.96 * r.se:.2f}"
         )
-    verdict = compare(results)
     print(verdict.describe())
     if args.project:
         print_projection(ds, series, results, verdict.best)
@@ -270,6 +329,7 @@ def cmd_synth(args) -> int:
 def data_args(s: argparse.ArgumentParser) -> None:
     s.add_argument("events", help="event log, .csv or .jsonl")
     s.add_argument("--series", help="which series, if the file has several")
+    s.add_argument("--json", action="store_true", help="print JSON instead of a table")
 
 
 def parser() -> argparse.ArgumentParser:
