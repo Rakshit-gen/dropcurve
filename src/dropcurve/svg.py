@@ -51,3 +51,49 @@ def line_chart(
         )
     parts.append("</svg>")
     return "".join(parts)
+
+
+def bar_chart(
+    values: list[tuple[int, float]],
+    width: int = 640,
+    height: int = 220,
+    x_label: str = "",
+    flagged: set[int] = frozenset(),
+) -> str:
+    """One bar per (episode, share). Flagged episodes get their own class."""
+    w = width - PAD_LEFT - PAD_RIGHT
+    h = height - PAD_TOP - PAD_BOTTOM
+    slot = w / max(len(values), 1)
+    label_every = max(1, round(len(values) / 15))
+    parts = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" '
+        f'role="img" aria-label="{escape(x_label)}">'
+    ]
+    for v in (0, 0.5, 1):
+        y = PAD_TOP + h * (1 - v)
+        parts.append(
+            f'<line class="grid" x1="{PAD_LEFT}" x2="{PAD_LEFT + w}" y1="{y:.1f}" y2="{y:.1f}"/>'
+            f'<text class="tick" x="{PAD_LEFT - 6}" y="{y + 4:.1f}" text-anchor="end">'
+            f"{int(v * 100)}%</text>"
+        )
+    for i, (ep, v) in enumerate(values):
+        bh = h * max(0.0, min(1.0, v))
+        cls = "bar flag" if ep in flagged else "bar"
+        x = PAD_LEFT + i * slot + slot * 0.15
+        parts.append(
+            f'<rect class="{cls}" x="{x:.1f}" y="{PAD_TOP + h - bh:.1f}" '
+            f'width="{slot * 0.7:.1f}" height="{bh:.1f}"><title>episode {ep}: '
+            f"{100 * v:.1f}%</title></rect>"
+        )
+        if i % label_every == 0:
+            parts.append(
+                f'<text class="tick" x="{x + slot * 0.35:.1f}" y="{PAD_TOP + h + 14}" '
+                f'text-anchor="middle">{ep}</text>'
+            )
+    if x_label:
+        parts.append(
+            f'<text class="tick" x="{PAD_LEFT + w / 2:.1f}" y="{height - 2}" '
+            f'text-anchor="middle">{escape(x_label)}</text>'
+        )
+    parts.append("</svg>")
+    return "".join(parts)
