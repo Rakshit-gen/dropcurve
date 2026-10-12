@@ -38,3 +38,11 @@ def test_steady_trickle_has_no_hotspots():
 def test_outro_is_ignored():
     ds = listeners(4000, cliff_at=0.95, cliff_share=0.3)
     assert all(h.start < 0.9 for h in find_hotspots(ds, "s1", 1))
+
+
+def test_a_few_stray_leavers_are_not_a_hotspot():
+    # 40 finishers and 3 people who left at random points: the median step
+    # loses nobody, so each leaver would look infinitely worse than typical.
+    events = [ev(f"f{i}", 1, 600) for i in range(40)]
+    events += [ev(f"l{i}", 1, pos) for i, pos in enumerate((130, 310, 470))]
+    assert find_hotspots(build(events), "s1", 1) == []
