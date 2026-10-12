@@ -1,6 +1,9 @@
+from dataclasses import replace
+
 import pytest
 
-from dropcurve.events import read_events
+from dropcurve.events import read_events, write_events
+from dropcurve.synth import Truth, generate
 
 
 def write(tmp_path, text, name="events.csv"):
@@ -117,3 +120,11 @@ def test_unlock_events(tmp_path):
     assert ds.unlocks == {("s1", "u1", 8): 25.0}
     assert ds.views[("s1", "u1", 8)].reached == 30
     assert "unknown event kind 'refund'" in errors[0]
+
+
+@pytest.mark.parametrize("name", ["out.csv", "out.jsonl"])
+def test_write_then_read_round_trips(tmp_path, name):
+    events = generate(40, replace(Truth(episodes=5), walls=(2,)), seed=5)
+    path = tmp_path / name
+    assert write_events(events, path) == len(events)
+    assert list(read_events(path)) == events

@@ -128,3 +128,34 @@ def read_events(path, errors: list[str] | None = None) -> Iterator[Event]:
             if errors is None:
                 raise EventError(msg) from e
             errors.append(msg)
+
+
+COLUMNS = ("user", "series", "episode", "position", "duration", "ts", "kind", "coins", "free")
+
+
+def write_events(events, path) -> int:
+    """Write events as CSV (or JSONL if the name ends in .jsonl). Returns the count."""
+    jsonl = str(path).lower().endswith((".jsonl", ".ndjson"))
+    n = 0
+    with open(path, "w", newline="") as f:
+        writer = None if jsonl else csv.writer(f)
+        if writer:
+            writer.writerow(COLUMNS)
+        for e in events:
+            row = [
+                e.user,
+                e.series,
+                e.episode,
+                e.position,
+                "" if e.duration is None else e.duration,
+                e.ts.astimezone(UTC).isoformat().replace("+00:00", "Z"),
+                e.kind,
+                e.coins or "",
+                e.free or "",
+            ]
+            if writer:
+                writer.writerow(row)
+            else:
+                f.write(json.dumps(dict(zip(COLUMNS, row, strict=True))) + "\n")
+            n += 1
+    return n
