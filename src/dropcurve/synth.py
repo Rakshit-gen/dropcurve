@@ -17,8 +17,8 @@ class Truth:
     series: str = "the-last-heir"
     episodes: int = 30
     duration: float = 480.0  # seconds per episode
-    base_leave: float = 0.25  # chance a listener leaves somewhere inside an episode
-    base_pull: float = 0.78  # chance a finisher starts the next episode
+    base_leave: float = 0.1  # chance a listener leaves somewhere inside an episode
+    base_pull: float = 0.92  # chance a finisher starts the next episode
     cliffs: dict[int, tuple[float, float]] = field(default_factory=dict)  # ep -> (at, extra)
     weak_endings: dict[int, float] = field(default_factory=dict)  # ep -> pull instead
     drag: dict[int, float] = field(default_factory=dict)  # ep -> leave chance instead
