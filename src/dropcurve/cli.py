@@ -143,8 +143,7 @@ def cmd_funnel(args) -> int:
         if st.continuation is None:
             nxt = "-"
         else:
-            lo, hi = st.continuation_ci
-            nxt = f"{pct(st.continuation):>6}  ({100 * lo:.0f}-{100 * hi:.0f}%)"
+            nxt = f"{pct(st.continuation):>6}  {span(st.continuation_ci)}"
         print(f"{st.episode:3d}  {st.listeners:9d}  {pct(st.reach):>6}  {pct(done):>8}  {nxt}")
     return 0
 
@@ -155,10 +154,9 @@ def cmd_endings(args) -> int:
     score_endings(ends, min_finishers=args.min_finishers)
     print(" ep  finishers  started next within 24h  verdict")
     for e in ends:
-        lo, hi = e.ci
         verdict = f"{e.verdict} (z = {e.z:.1f})" if e.verdict else ""
         print(
-            f"{e.episode:3d}  {e.finishers:9d}  {pct(e.pull):>6}  ({100 * lo:.0f}-{100 * hi:.0f}%)"
+            f"{e.episode:3d}  {e.finishers:9d}  {pct(e.pull):>6}  {span(e.ci)}"
             f"{'':10}{verdict}".rstrip()
         )
     return 0
@@ -177,7 +175,7 @@ def cmd_survival(args) -> int:
     for p in km:
         print(
             f"{p.episode:3d}  {p.at_risk:7d}  {p.lost:4d}  {pct(p.survival):>6}"
-            f"  ({100 * p.low:.0f}-{100 * p.high:.0f}%)"
+            f"  {span((p.low, p.high))}"
         )
     depth = median_depth(km)
     if depth is not None:
@@ -223,10 +221,9 @@ def cmd_paywall(args) -> int:
         )
     print("free eps  starters  met wall  paid  conversion (95% range)  coins per starter")
     for r in results:
-        lo, hi = r.conversion_ci
         print(
             f"{r.free:8d}  {r.starters:8d}  {r.reached:8d}  {r.payers:4d}  {pct(r.conversion):>10}"
-            f" ({100 * lo:.0f}-{100 * hi:.0f}%)  {r.per_starter:12.2f} +- {1.96 * r.se:.2f}"
+            f" {span(r.conversion_ci)}  {r.per_starter:12.2f} +- {1.96 * r.se:.2f}"
         )
     verdict = compare(results)
     print(verdict.describe())
