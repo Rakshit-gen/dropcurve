@@ -5,6 +5,7 @@ import sys
 from dataclasses import replace
 
 from . import __version__
+from .binge import binge_stats, time_to_next
 from .cliffhanger import endings, score_endings
 from .curve import retention_curve
 from .events import EventError, read_events, write_events
@@ -158,6 +159,24 @@ def cmd_survival(args) -> int:
     return 0
 
 
+def cmd_binge(args) -> int:
+    ds, series = load(args)
+    b = binge_stats(ds, series)
+    gap = time_to_next(ds, series)
+    print(f"{b.sessions} listening sessions (a gap of 30 minutes or more starts a new one)")
+    print(
+        f"  episodes per session    median {b.median_episodes:g},"
+        f" 90th percentile {b.p90_episodes:g}"
+    )
+    print(f"  sessions of 3 or more   {pct(b.binge_share)}")
+    if gap:
+        print(
+            f"  time to next episode    median {gap.median_hours * 60:.0f} min,"
+            f" 90th percentile {gap.p90_hours:.1f} h ({gap.count} transitions)"
+        )
+    return 0
+
+
 def cmd_synth(args) -> int:
     truth = Truth.demo()
     if args.walls:
@@ -227,6 +246,10 @@ def parser() -> argparse.ArgumentParser:
         help="seen this recently = still active, not lost (7)",
     )
     s.set_defaults(func=cmd_survival)
+
+    s = sub.add_parser("binge", help="episodes per sitting and time between episodes")
+    data_args(s)
+    s.set_defaults(func=cmd_binge)
     return p
 
 
