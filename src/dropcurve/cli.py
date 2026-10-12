@@ -107,6 +107,20 @@ def cmd_hotspots(args) -> int:
     return 0
 
 
+def cmd_funnel(args) -> int:
+    ds, series = load(args)
+    print(" ep  listeners   reach  finished  went on to next (95% range)")
+    for st in funnel(ds, series):
+        done = st.finished / st.listeners if st.listeners else None
+        if st.continuation is None:
+            nxt = "-"
+        else:
+            lo, hi = st.continuation_ci
+            nxt = f"{pct(st.continuation):>6}  ({100 * lo:.0f}-{100 * hi:.0f}%)"
+        print(f"{st.episode:3d}  {st.listeners:9d}  {pct(st.reach):>6}  {pct(done):>8}  {nxt}")
+    return 0
+
+
 def cmd_synth(args) -> int:
     truth = Truth.demo()
     if args.walls:
@@ -152,6 +166,10 @@ def parser() -> argparse.ArgumentParser:
         "--factor", type=float, default=3.0, help="how many times the usual loss rate (3)"
     )
     s.set_defaults(func=cmd_hotspots)
+
+    s = sub.add_parser("funnel", help="how far into the series people get")
+    data_args(s)
+    s.set_defaults(func=cmd_funnel)
     return p
 
 

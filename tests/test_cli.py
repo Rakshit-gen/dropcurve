@@ -60,3 +60,10 @@ def test_hotspots_lists_the_planted_cliff(demo, capsys):
     assert out.startswith("episode   6    41-42%   3:16-3:21  lost ")
     assert main(["hotspots", demo, "--episode", "3"]) == 0
     assert capsys.readouterr().out.startswith("no hotspots")
+
+
+def test_funnel_table(demo, capsys):
+    assert main(["funnel", demo]) == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[1].startswith("  1       1500  100.0%")
+    assert lines[-1].endswith("  -")  # no next episode to go on to
