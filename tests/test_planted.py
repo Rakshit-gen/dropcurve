@@ -30,3 +30,13 @@ def test_finds_the_weak_ending(ds):
     score_endings(ends)
     assert [e.episode for e in ends if e.verdict == "weak"] == [9]
     assert not [e for e in ends if e.verdict == "strong"]
+
+
+def test_finds_the_slow_episode(ds):
+    from dropcurve.anomalies import anomalies
+    from dropcurve.episodes import episode_stats
+
+    found = anomalies(episode_stats(ds, T.series))
+    # Episode 6 is flagged too, and rightly: the people lost at its ad break
+    # never finish it. Episode 14 is the one with no cliff, just a slow drain.
+    assert [a.episode for a in found] == [6, 14]
