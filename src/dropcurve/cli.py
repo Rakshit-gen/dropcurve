@@ -13,7 +13,7 @@ from .cliffhanger import endings, score_endings
 from .cohorts import cohorts
 from .curve import retention_curve
 from .episodes import episode_stats
-from .events import EventError, read_events, write_events
+from .events import EventError, parse_ts, read_events, write_events
 from .funnel import funnel, listeners_by_episode
 from .hotspots import find_hotspots
 from .paywall import compare, paid_continuation, project, wall_results
@@ -35,7 +35,14 @@ def _ints(text: str) -> tuple[int, ...]:
 
 def load(args) -> tuple[Dataset, str]:
     """Read the events file and pick the series to analyse."""
-    ds = build(read_events(args.events))
+    events = read_events(args.events)
+    if args.since or args.until:
+        events = (
+            e
+            for e in events
+            if (not args.since or e.ts >= args.since) and (not args.until or e.ts < args.until)
+        )
+    ds = build(events)
     names = ds.series()
     if not names:
         raise UsageError(f"{args.events}: no listening events")
@@ -326,10 +333,19 @@ def cmd_synth(args) -> int:
     return 0
 
 
+def when(text: str):
+    try:
+        return parse_ts(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"expected a date like 2026-02-01, got {text!r}") from None
+
+
 def data_args(s: argparse.ArgumentParser) -> None:
     s.add_argument("events", help="event log, .csv or .jsonl")
     s.add_argument("--series", help="which series, if the file has several")
     s.add_argument("--json", action="store_true", help="print JSON instead of a table")
+    s.add_argument("--since", type=when, help="only events at or after this time (ISO date)")
+    s.add_argument("--until", type=when, help="only events before this time (ISO date)")
 
 
 def parser() -> argparse.ArgumentParser:

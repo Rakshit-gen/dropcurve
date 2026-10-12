@@ -148,3 +148,16 @@ def test_json_includes_computed_fields(demo, capsys):
     ends = json.loads(capsys.readouterr().out)
     weak = [e for e in ends if e["verdict"] == "weak"]
     assert weak[0]["episode"] == 9 and 0 < weak[0]["pull"] < 0.5
+
+
+def test_since_and_until_filter_by_time(demo, capsys):
+    main(["summary", demo, "--json"])
+    everyone = json.loads(capsys.readouterr().out)["listeners"]
+    main(["summary", demo, "--json", "--until", "2026-01-12"])
+    first_week = json.loads(capsys.readouterr().out)["listeners"]
+    main(["summary", demo, "--json", "--since", "2026-01-12"])
+    later = json.loads(capsys.readouterr().out)["listeners"]
+    assert 0 < first_week < everyone
+    assert 0 < later < everyone
+    with pytest.raises(SystemExit):
+        main(["summary", demo, "--since", "last tuesday"])
